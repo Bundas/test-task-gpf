@@ -30,11 +30,11 @@ const createFunctionWrapperForStreams = (client, apiKey) => (func) => (
     });
 
     stream.on("end", () => {
-      resolve(messages);
+      return resolve(messages);
     });
 
     stream.on("error", (error) => {
-      reject(error);
+      return reject(error);
     });
   });
 };
@@ -46,10 +46,10 @@ const createFunctionWrapper = (client, apiKey) => (func) => (
     const params = { apiKey, ...externalParams };
     func.call(client, params, (error, result) => {
       if (error) {
-        reject(error);
+        return reject(error);
       }
 
-      resolve(result);
+      return resolve(result);
     });
   });
 };

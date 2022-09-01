@@ -58,6 +58,8 @@ const resolvers = {
             orderId: input.orderId,
           };
         }
+
+        throw error;
       }
     },
     createProduct: async (_, { input }, { simpleDataSource }) => {
