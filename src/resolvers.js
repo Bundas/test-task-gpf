@@ -1,35 +1,35 @@
 const { util } = require("protobufjs");
 
-const { repo } = require("./util");
-
 const resolvers = {
   Query: {
-    getOrders: () => {
-      return repo.getOrders();
+    getOrders: (_, __, { simpleDataSource }) => {
+      return simpleDataSource.getOrders();
     },
-    getProducts: async (_, args) => {
-      const productsResponse = await repo.getProducts({
+    getProducts: async (_, args, { simpleDataSource }) => {
+      const productsResponse = await simpleDataSource.getProducts({
         ids: args.ids,
       });
 
       return productsResponse.map(({ product }) => product);
     },
-    searchProducts: async (parent, args) => {
-      const productsResponse = await repo.searchProducts({ name: args.name });
+    searchProducts: async (_, args, { simpleDataSource }) => {
+      const productsResponse = await simpleDataSource.searchProducts({
+        name: args.name,
+      });
       return productsResponse.map(({ product }) => product);
     },
-    getCategories: async () => {
-      const categories = await repo.getCategories();
+    getCategories: async (_, __, { simpleDataSource }) => {
+      const categories = await simpleDataSource.getCategories();
       return categories;
     },
   },
   Mutation: {
-    createOrder: async (_, { input }) => {
+    createOrder: async (_, { input }, { simpleDataSource }) => {
       const items = Object.fromEntries(
         input.orderItems.map(({ productId, quantity }) => [productId, quantity])
       );
 
-      const result = await repo.createOrder({
+      const result = await simpleDataSource.createOrder({
         items,
       });
 
@@ -38,19 +38,30 @@ const resolvers = {
         record: result,
       };
     },
-    changeOrderStatus: async (_, { input }) => {
-      const result = await repo.changeOrderStatus({
-        order_id: input.orderId,
-        status: input.status,
-      });
+    changeOrderStatus: async (_, { input }, { simpleDataSource }) => {
+      try {
+        const result = await simpleDataSource.changeOrderStatus({
+          order_id: input.orderId,
+          status: input.status,
+        });
 
-      return {
-        recordId: result.id,
-        record: result,
-      };
+        return {
+          __typename: "ChangeOrderStatusPayload",
+          recordId: result.id,
+          record: result,
+        };
+      } catch (error) {
+        if (error.details === "Order Not Found") {
+          return {
+            __typename: "OrderNotFoundError",
+            message: error.details,
+            orderId: input.orderId,
+          };
+        }
+      }
     },
-    createProduct: async (_, { input }) => {
-      const result = await repo.createProduct({
+    createProduct: async (_, { input }, { simpleDataSource }) => {
+      const result = await simpleDataSource.createProduct({
         name: input.name,
         color: input.color,
         price: input.price,
@@ -62,8 +73,8 @@ const resolvers = {
         record: result,
       };
     },
-    editProduct: async (_, { input }) => {
-      const result = await repo.editProduct({
+    editProduct: async (_, { input }, { simpleDataSource }) => {
+      const result = await simpleDataSource.editProduct({
         product: {
           id: input.productId,
           name: input.name,
@@ -80,17 +91,19 @@ const resolvers = {
     },
   },
   Order: {
-    items: async (parent) => {
+    items: async (parent, _, { simpleDataSource }) => {
       const productIds = Object.keys(parent.items).map((hashedId) =>
         util.longFromHash(hashedId).toString()
       );
 
-      const productsResponse = await repo.getProducts({ ids: productIds });
+      const productsResponse = await simpleDataSource.getProducts({
+        ids: productIds,
+      });
       const products = productsResponse.map(({ product }) => product);
 
       const items = Object.entries(parent.items).map(([hashedId, quantity]) => {
         const productId = util.longFromHash(hashedId).toString();
-        const product = products.find((product) => product.id === productId);
+        const product = products.find((product) => product?.id === productId);
 
         return { product, quantity };
       });
@@ -99,8 +112,8 @@ const resolvers = {
     },
   },
   Product: {
-    category: async (parent) => {
-      const categories = await repo.getCategories();
+    category: async (parent, _, { simpleDataSource }) => {
+      const categories = await simpleDataSource.getCategories();
 
       const category = categories.find(
         (category) => category.id === parent.category_id

@@ -1,7 +1,6 @@
 const grpc = require("@grpc/grpc-js");
 var protoLoader = require("@grpc/proto-loader");
 
-const pathToProto = `/Users/jan_burda1/Documents/djtestpoms/djtestpoms/djtestpoms.proto`;
 const options = {
   keepCase: true,
   longs: String,
@@ -9,22 +8,22 @@ const options = {
   defaults: true,
   oneofs: true,
 };
-const packageDefinition = protoLoader.loadSync(pathToProto, options);
+
+const packageDefinition = protoLoader.loadSync(
+  process.env.PATH_TO_PROTOBUF_SCHEMA,
+  options
+);
+
 const {
   djtestpoms: { StoreManager },
 } = grpc.loadPackageDefinition(packageDefinition);
 
-const client = new StoreManager(
-  "localhost:8080",
-  grpc.credentials.createInsecure()
-);
-
-const createFunctionWrapperForStreams = (client) => (func) => (
+const createFunctionWrapperForStreams = (client, apiKey) => (func) => (
   externalParams
 ) => {
   return new Promise((resolve, reject) => {
     const messages = [];
-    const params = { apiKey: "dQw4w9WgXcQ", ...externalParams };
+    const params = { apiKey, ...externalParams };
     const stream = func.call(client, params);
     stream.on("data", (data) => {
       messages.push(data);
@@ -40,9 +39,11 @@ const createFunctionWrapperForStreams = (client) => (func) => (
   });
 };
 
-const createFunctionWrapper = (client) => (func) => (externalParams) => {
+const createFunctionWrapper = (client, apiKey) => (func) => (
+  externalParams
+) => {
   return new Promise((resolve, reject) => {
-    const params = { apiKey: "dQw4w9WgXcQ", ...externalParams };
+    const params = { apiKey, ...externalParams };
     func.call(client, params, (error, result) => {
       if (error) {
         reject(error);
@@ -53,9 +54,13 @@ const createFunctionWrapper = (client) => (func) => (externalParams) => {
   });
 };
 
-const createRepo = (client) => {
-  const promisifyStreamFunction = createFunctionWrapperForStreams(client);
-  const promisifyFunction = createFunctionWrapper(client);
+const createRepository = (client, apiKey) => {
+  const promisifyStreamFunction = createFunctionWrapperForStreams(
+    client,
+    apiKey
+  );
+
+  const promisifyFunction = createFunctionWrapper(client, apiKey);
 
   return {
     getProducts: promisifyStreamFunction(client.getProducts),
@@ -69,6 +74,8 @@ const createRepo = (client) => {
   };
 };
 
-const repo = createRepo(client);
+const createClient = (endpoint) => {
+  return new StoreManager(endpoint, grpc.credentials.createInsecure());
+};
 
-module.exports = { client, repo };
+module.exports = { createClient, createRepository };

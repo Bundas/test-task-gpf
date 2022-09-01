@@ -1,36 +1,12 @@
 const { gql } = require("apollo-server");
 
 const schema = gql`
-  type Category {
-    id: ID!
-    name: String!
-  }
-
-  type Product {
-    id: ID!
-    name: String!
-    color: String!
-    price: Float!
-    category: Category!
-  }
-
   enum OrderStatus {
     CREATED
     READY_TO_SHIP
     SHIPPED
     DELIVERED
     CANCELLED
-  }
-
-  type OrderItem {
-    product: Product!
-    quantity: Int!
-  }
-
-  type Order {
-    id: ID!
-    status: OrderStatus!
-    items: [OrderItem!]!
   }
 
   input CreateProductInput {
@@ -69,6 +45,39 @@ const schema = gql`
     categoryId: ID!
   }
 
+  interface BaseError {
+    message: String!
+  }
+
+  type OrderNotFoundError implements BaseError {
+    message: String!
+    orderId: String!
+  }
+
+  type Category {
+    id: ID!
+    name: String!
+  }
+
+  type Product {
+    id: ID!
+    name: String!
+    color: String!
+    price: Float!
+    category: Category
+  }
+
+  type OrderItem {
+    product: Product
+    quantity: Int!
+  }
+
+  type Order {
+    id: ID!
+    status: OrderStatus!
+    items: [OrderItem!]!
+  }
+
   type CreateProductPayload {
     recordId: ID
     record: Product
@@ -82,6 +91,7 @@ const schema = gql`
   type CreateOrderPayload {
     recordId: ID
     record: Order
+    errorMessage: String
   }
 
   type ChangeOrderStatusPayload {
@@ -90,19 +100,21 @@ const schema = gql`
   }
 
   type Query {
-    getProducts(ids: [ID!]!): [Product!]!
+    getProducts(ids: [ID!]!): [Product]!
     searchProducts(name: String!): [Product!]!
 
     getCategories: [Category!]!
     getOrders: [Order!]!
   }
 
+  union ChangeOrderStatusResult = ChangeOrderStatusPayload | OrderNotFoundError
+
   type Mutation {
     createProduct(input: CreateProductInput!): CreateProductPayload
     editProduct(input: EditProductInput!): EditProductPayload
 
     createOrder(input: CreateOrderInput!): CreateOrderPayload
-    changeOrderStatus(input: ChangeOrderStatusInput!): ChangeOrderStatusPayload
+    changeOrderStatus(input: ChangeOrderStatusInput!): ChangeOrderStatusResult
   }
 `;
 
